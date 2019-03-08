@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const pdftk = require('node-pdftk');
 const uniqid = require('uniqid');
 const path = require('path');
+const request = require('request');
 
 // ###
 
@@ -63,15 +64,29 @@ function createKeypair(req, res, next) {
 // ### /stamp
 
 function stamp(req, res, next) {
-    console.log(`### stamp uploaded file: ${req.files.upload.name}\n` );
-    
-    stampUpload(req.files.upload.path, req.files.context.path).then(data => {
-        res.writeHead(200, { 'Content-Type': 'application/pdf' });
-        res.end(data, 'binary');
-    }).catch(error => {
-        console.log(error);
-        return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
-    });
+    if (req.files.hasOwnProperty('upload')) {
+        console.log(`### stamp uploaded file: ${req.files.upload.name}\n` );
+        
+        stampUpload(req.files.upload.path, req.files.context.path).then(data => {
+            res.writeHead(200, { 'Content-Type': 'application/pdf' });
+            res.end(data, 'binary');
+        }).catch(error => {
+            console.log(error);
+            return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        });
+    } else if (req.files.hasOwnProperty('request')) {
+        console.log(`### stamp request url: ${req.files.request.name}\n` );    
+
+        stampRequest(req.files.request.path, req.files.context.path).then(data => {
+            res.writeHead(200, { 'Content-Type': 'application/pdf' });
+            res.end(data, 'binary');
+        }).catch(error => {
+            console.log(error);
+            return next(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+        });    
+    } else {
+        return next(new errors.BadRequestError("neither file nor request"));        
+    }
 }
 
 // ### /verify[/:cidsStampId]
@@ -168,6 +183,58 @@ function stampUpload(uploadPath, contextPath) {
             reject(error);
         });
         
+    });
+}
+
+// ###
+
+function stampRequest(requestPath, contextPath) {
+    return new Promise(async (resolve, reject) => {
+        let uniqTmpDir = defaultConf.tmpDir + 'stamp_' + uniqid() + '/';       
+
+        let requestFile = uniqTmpDir + 'request.json';
+        let contextFile = uniqTmpDir + 'context.json';
+    
+        fx.mkdirSync(uniqTmpDir);
+        fs.copyFileSync(requestPath, requestFile);
+        fs.copyFileSync(contextPath, contextFile);
+
+        let requestData = JSON.parse(fs.readFileSync(requestFile));
+        console.log(requestData);
+        let requestUrl = requestData.url;
+        console.log(requestUrl);
+
+        let file = uniqTmpDir + 'file.pdf';
+        request({ 'url' : requestUrl, 'encoding': null }, (error, response, body) => {
+            if (error) {
+                return reject(error);
+            }
+
+            fs.writeFileSync(file, body);
+            stampFile(file).then(stampData => {
+                let stampId = stampData.stampId;
+    
+                fx.mkdirSync(defaultConf.dataDir);
+    
+                fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
+                fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
+                fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+    
+                fs.readFile(stampData.stampedFile, (error, data) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(data);
+                    }
+
+                    // cleanup
+                    del(uniqTmpDir);
+                });
+    
+            }).catch(error => {
+                reject(error);
+            });    
+        });
     });
 }
 
