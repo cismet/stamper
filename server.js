@@ -31,7 +31,7 @@ function main() {
 
     server.post('/stamp', stamp);
     server.post('/verify', verify);
-    server.post('/verify/:CidsStampId', verify);
+    server.post('/verify/:cidsStampId', verify);
     server.get('/createKeypair', createKeypair);
 
     server.pre(restify.pre.userAgentConnection());
@@ -73,7 +73,7 @@ function stamp(req, res, next) {
     });
 }
 
-// ### /verify[/:CidsStampId]
+// ### /verify[/:cidsStampId]
 
 function verify(req, res, next) {
     if (req.files.hasOwnProperty('upload')) {
@@ -90,11 +90,11 @@ function verify(req, res, next) {
             return next(error);
         });
     } else if (req.params.hasOwnProperty('md5Sum')) {
-        let CidsStampId = req.params.CidsStampId;
+        let cidsStampId = req.params.cidsStampId;
         let md5Sum = req.params.md5Sum;
-        console.log(`### verify ${CidsStampId} by md5Sum: ${md5Sum}\n`);
+        console.log(`### verify ${cidsStampId} by md5Sum: ${md5Sum}\n`);
 
-        verifyMd5Sum(CidsStampId, md5Sum).then(isMatching => {
+        verifyMd5Sum(cidsStampId, md5Sum).then(isMatching => {
             res.writeHead(200, { 'Content-Type': 'plain/text' });
             if (isMatching) {
                 res.end('md5Sum is matching');
@@ -160,7 +160,7 @@ function stampUpload(uploadPath, contextPath) {
     
         // writing new dump file containing stamp id
         let dump = fs.readFileSync(dumpUploadFile);
-        let cidsStampDumpInfoPart = 'InfoBegin\nInfoKey: CidsStampId\nInfoValue: ' + id + '\n';
+        let cidsStampDumpInfoPart = 'InfoBegin\nInfoKey: cidsStampId\nInfoValue: ' + id + '\n';
         fs.writeFileSync(dumpNewFile, cidsStampDumpInfoPart + dump);
     
         // writing pdf file with dump containing stamp id
@@ -210,9 +210,9 @@ function stampUpload(uploadPath, contextPath) {
 
 // ###
 
-function verifyMd5Sum(CidsStampId, md5Sum) {
+function verifyMd5Sum(cidsStampId, md5Sum) {
     return new Promise(async (resolve, reject) => {
-        let md5SumDbFile = defaultConf.dataDir + CidsStampId + '.md5';
+        let md5SumDbFile = defaultConf.dataDir + cidsStampId + '.md5';
         if (!fs.existsSync(md5SumDbFile)) {
             console.log('no md5 hash found for this file');
             resolve(false);
@@ -232,9 +232,9 @@ function verifyMd5Sum(CidsStampId, md5Sum) {
 
 // ###
 
-function verifyPgpSignature(CidsStampId, file) {
+function verifyPgpSignature(cidsStampId, file) {
     return new Promise((resolve, reject) => {
-        let signatureDbFile = defaultConf.dataDir + CidsStampId + '.pgp';
+        let signatureDbFile = defaultConf.dataDir + cidsStampId + '.pgp';
         if (!fs.existsSync(signatureDbFile)) {
             return reject(new errors.NotFoundError('no signature found for this file'));
         }
@@ -282,20 +282,20 @@ function verifyStampOfFile(uploadPath) {
     
         let dumpLines = dumpUpload.split('\n');
     
-        let CidsStampId;
+        let cidsStampId;
         for (let i = 0 ; i < dumpLines.length; i++) {
             let dumpLine = dumpLines[i];
-            if ('InfoKey: CidsStampId' === dumpLine) {
-                CidsStampId = dumpLines[i+1].replace('InfoValue: ', '');
+            if ('InfoKey: cidsStampId' === dumpLine) {
+                cidsStampId = dumpLines[i+1].replace('InfoValue: ', '');
                 break;
             }
         }
     
-        if (!CidsStampId) {
-            console.log('CidsStampId missing in PDF');
+        if (!cidsStampId) {
+            console.log('cidsStampId missing in PDF');
             resolve(false);
         } else {    
-            let hashDbFile = defaultConf.dataDir + CidsStampId + '.md5';
+            let hashDbFile = defaultConf.dataDir + cidsStampId + '.md5';
         
             if (!fs.existsSync(hashDbFile)) {
                 console.log('no md5 hash found for this file');
@@ -303,9 +303,9 @@ function verifyStampOfFile(uploadPath) {
             } else {        
                 let md5Sum = await fileHash(uploadFile);
                 
-                verifyMd5Sum(CidsStampId, md5Sum).then(isMatching => {
+                verifyMd5Sum(cidsStampId, md5Sum).then(isMatching => {
                     if (isMatching) {
-                        verifyPgpSignature(CidsStampId, uploadFile).then(isMatching => {
+                        verifyPgpSignature(cidsStampId, uploadFile).then(isMatching => {
                             resolve(isMatching);
                         }).catch(error => {
                             reject(error);
