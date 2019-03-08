@@ -7,6 +7,7 @@ const openpgp = require('openpgp');
 const crypto = require('crypto');
 const pdftk = require('node-pdftk');
 const uniqid = require('uniqid');
+const path = require('path');
 
 // ###
 
@@ -137,34 +138,63 @@ function fileHash(filename, algorithm = 'md5') {
 
 function stampUpload(uploadPath, contextPath) {
     return new Promise(async (resolve, reject) => {
-        let id = uniqid();
-    
-        let uniqTmpDir = defaultConf.tmpDir + 'stamp_' + id + '/';
-        fx.mkdirSync(uniqTmpDir);
-        
-        // ok letze go
-    
+        let uniqTmpDir = defaultConf.tmpDir + 'stamp_' + uniqid() + '/';        
         let uploadFile = uniqTmpDir + 'upload.pdf';
-        let signatureFile = uniqTmpDir + 'signature.pgp';
-        let stampedFile = uniqTmpDir + 'stamped.pdf';
-        let dumpUploadFile = uniqTmpDir + 'upload.dump';
-        let dumpNewFile = uniqTmpDir + 'new.dump';
-        let hashFile = uniqTmpDir + 'hash.md5';
         let contextFile = uniqTmpDir + 'context.json';
     
+        fx.mkdirSync(uniqTmpDir);
         fs.copyFileSync(uploadPath, uploadFile);
         fs.copyFileSync(contextPath, contextFile);
 
+        stampFile(uploadFile).then(stampData => {
+            let stampId = stampData.stampId;
+
+            fx.mkdirSync(defaultConf.dataDir);
+
+            fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
+            fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
+            fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+
+            fs.readFile(stampData.stampedFile, (error, data) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(data);
+                }
+                // cleanup
+                del(uniqTmpDir);
+            });
+        }).catch(error => {
+            reject(error);
+        });
+        
+    });
+}
+
+// ###
+
+function stampFile(file) {
+
+    let fileDir = path.dirname(file) + '/';
+    let signatureFile = fileDir + 'signature.pgp';
+    let dumpUploadFile = fileDir + 'orig.dump';
+    let dumpNewFile = fileDir + 'new.dump';
+    let stampedFile = fileDir + 'stamped.pdf';
+    let hashFile = fileDir + 'hash.md5';
+
+    return new Promise(async (resolve, reject) => {
+        let stampId = uniqid();
+
         // extracting dump file from uploaded pdf
-        await pdftk.input(uploadFile).dumpData().output(dumpUploadFile);        
+        await pdftk.input(file).dumpData().output(dumpUploadFile);        
     
         // writing new dump file containing stamp id
         let dump = fs.readFileSync(dumpUploadFile);
-        let cidsStampDumpInfoPart = 'InfoBegin\nInfoKey: cidsStampId\nInfoValue: ' + id + '\n';
+        let cidsStampDumpInfoPart = 'InfoBegin\nInfoKey: cidsStampId\nInfoValue: ' + stampId + '\n';
         fs.writeFileSync(dumpNewFile, cidsStampDumpInfoPart + dump);
     
         // writing pdf file with dump containing stamp id
-        await pdftk.input(uploadFile).updateInfo(dumpNewFile).output(stampedFile);
+        await pdftk.input(file).updateInfo(dumpNewFile).output(stampedFile);
     
         // writing hash file for created pdf
         fs.writeFileSync(hashFile, await fileHash(stampedFile));
@@ -185,26 +215,16 @@ function stampUpload(uploadPath, contextPath) {
                 detached: true,
             };
             
-            openpgp.sign(options).then(async data => {
+            openpgp.sign(options).then(data => {
                 fs.writeFileSync(signatureFile, data.signature);   
-
-                fx.mkdirSync(defaultConf.dataDir);
-                fs.copyFileSync(hashFile, defaultConf.dataDir + id + '.md5');
-                fs.copyFileSync(signatureFile, defaultConf.dataDir + id + '.pgp');
-                fs.copyFileSync(contextFile, defaultConf.dataDir + id + '.json');
-                
-                fs.readFile(stampedFile, (error, data) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(data);
-                    }
-
-                    // cleanup
-                    del(uniqTmpDir);
-                });
-            });            
-        });
+                resolve({
+                    'stampId': stampId,
+                    'hashFile': hashFile,                    
+                    'signatureFile': signatureFile,                    
+                    'stampedFile': stampedFile,                    
+                });                
+            });
+        });        
     });
 }
 
