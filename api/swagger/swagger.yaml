@@ -1,0 +1,181 @@
+swagger: "2.0"
+info:
+  version: "0.0.1"
+  title: Stamper
+host: localhost:10010
+basePath: /
+schemes:
+  - http
+  - https
+consumes:
+  - application/json
+  - application/pdf
+produces:
+  - application/json
+  - application/pdf
+  - text/plain
+paths:
+  /stampDocument:
+    x-swagger-router-controller: stamp
+    post:
+      description: Returns stamped document for a given uploaded document.
+      operationId: stampDocument
+      produces:
+      - application/pdf
+      responses:
+        200:
+          description: The stamped document.
+          schema:
+            type: string
+            format: binary
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: document
+          description: The document (PDF) that you want be stamped.
+          in: formData          
+          type: file
+          x-mimetype': application/pdf
+          required: true
+        - name: context
+          description: JSON represention of the context.
+          in: formData
+          type: file
+          required: false
+  /stampRequest:
+    x-swagger-router-controller: stamp
+    post:
+      description: Returns stamped document for a given request.
+      operationId: stampRequest
+      produces:
+      - application/pdf
+      responses:
+        200:
+          description: The stamped document.
+          schema:
+            type: string
+            format: binary
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: requestJson
+          description: JSON containing the request informations.
+          in: formData          
+          type: file
+          x-mimetype': application/json
+          required: true
+        - name: context
+          description: JSON represention of the context.
+          in: formData
+          type: file
+          required: false
+  /verifyDocumentStamp:
+    x-swagger-router-controller: stamp
+    post:
+      description: Verifies wether or not the document is correctly stamped.
+      operationId: verifyDocumentStamp
+      produces:
+      - application/json
+      responses:
+        200:
+          description: JSON with stamp verification result.
+          schema:
+            $ref: "#/definitions/StampVerificationResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: document
+          description: The document (PDF) for which the stamp has to be verified.
+          in: formData          
+          type: file
+          x-mimetype': application/pdf
+          required: true
+  /verifyMd5sum/{stampId}:
+    x-swagger-router-controller: stamp
+    get:
+      description: Verifies wether or not the md5sum of document matches the md5sum of the corresponding document.
+      operationId: verifyMd5sum
+      produces:
+      - application/json
+      responses:
+        200:
+          description: JSON with md5sum verification result.
+          schema:
+            $ref: "#/definitions/Md5sumVerificationResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      parameters:
+        - name: stampId
+          description: The stampId of the document.
+          in: path
+          type: string
+          required: true
+        - name: md5sum
+          description: The md5sum of the document.
+          in: query
+          type: string
+          required: true
+  /getPgpSignature/{stampId}:
+    x-swagger-router-controller: stamp
+    get:
+      description: Returns the PGP signature of the document corresponding to a given stampId.
+      operationId: getPgpSignature
+      produces:
+      - text/plain
+      responses:
+        200:
+          description: The PGP signature of the document corresponding to the stampId.
+          schema:
+            type: string
+            format: text
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+      parameters:
+        - name: stampId
+          description: The stampId of the document.
+          in: path          
+          type: string
+          required: true
+  /swagger:
+    x-swagger-pipe: swagger_raw
+definitions:
+  ErrorResponse:
+    required:
+      - message
+    properties:
+      message:
+        type: string
+  StampVerificationResponse:
+    required:
+      - stampId
+      - stampIsValid
+    properties:
+      stampId:
+        type: string
+      stampIsValid:
+        type: boolean            
+  Md5sumVerificationResponse:
+    required:
+      - stampId
+      - md5sumIsMatching
+    properties:
+      stampId:
+        type: string
+      md5sumIsMatching:
+        type: boolean      

@@ -1,9 +1,0 @@
-{
-    "apps": [{
-        "name": "stamper",
-        "script": "./server.js",
-        "interpreter": "babel-node",
-        "watch": true,
-        "ignore_watch": ["tmp", "data", "test"]
-    }]
-}
