@@ -25,8 +25,8 @@ module.exports = {
 const defaultConf = {
   'tmpDir': './tmp/',
   'dataDir': './data/',
-  'privateKeyFile' : './keys/private.key',
-  'PublicKeyFile' : './keys/public.key',
+  'privateKeyFile' : './config/private.key',
+  'PublicKeyFile' : './config/public.key',
   'keyPassword' : 'secret',
 };
 
