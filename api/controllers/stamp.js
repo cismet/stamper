@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const pdftk = require('node-pdftk');
 const uniqid = require('uniqid');
 const path = require('path');
-const request = require('request');
+var fetch = require('node-fetch');
 
 module.exports = {
   createKeypair: apiCreateKeypair,
@@ -119,41 +119,47 @@ function apiStampRequest(req, res) {
 
     let requestData = JSON.parse(requestJsonBuffer);
     let requestUrl = requestData.url;
+    let requestOptions = requestData.options;
 
-    let file = uniqTmpDir + 'file.pdf';
-    request({ 'url' : requestUrl, 'encoding': null }, (error, response, body) => {
-        if (error) {
-            return reject(error);
-        }
+    fetch(requestUrl, requestOptions).then((res) => {
+      let file = uniqTmpDir + 'file.pdf';
 
-        fs.writeFileSync(file, body);
+      let fileStream = fs.createWriteStream(file);
+      res.body.pipe(fileStream);      
+      res.body.on("error", (error) => {
+        fileStream.close();
+        reject(error);
+      });
+      fileStream.on("finish", function() {
+        fileStream.close();
+
         stampFile(file).then(stampData => {
-            let stampId = stampData.stampId;
+          let stampId = stampData.stampId;
 
-            fx.mkdirSync(defaultConf.dataDir);
+          fx.mkdirSync(defaultConf.dataDir);
 
-            fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
-            fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
-            if (contextBuffer) {
-              fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+          fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
+          fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
+          if (contextBuffer) {
+            fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+          }
+
+          fs.readFile(stampData.stampedFile, (error, data) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(data);
             }
-
-            fs.readFile(stampData.stampedFile, (error, data) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve(data);
-                }
-                try { // cleanup              
-                  del(uniqTmpDir);
-                } catch(error) {
-                  console.log(error);
-                }    
-            });
-
+            try { // cleanup              
+              del(uniqTmpDir);
+            } catch(error) {
+              console.log(error);
+            }    
+          });
         }).catch(error => {
-            reject(error);
+          reject(error);
         });    
+      });
     });
   }).then(data => {
     res.writeHead(200, { 'Content-Type': 'application/pdf' });

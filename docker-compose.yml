@@ -12,7 +12,6 @@ services:
    - ./config/stamper.json:/app/config/stamper.json:ro
    - ./config/private.key:/app/config/private.key:ro
    - ./config/public.key:/app/config/public.key:ro
-   - ./tmp:/app/tmp
    - ./data:/app/data
   restart: always
   command: swagger project start
