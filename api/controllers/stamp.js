@@ -97,7 +97,7 @@ function apiStampDocument(req, res) {
                 resolve(data);
             }
             try { // cleanup              
-              del(uniqTmpDir);
+              del(uniqTmpDir, { 'force' : true });
             } catch(error) {
               console.log(error);
             }
@@ -168,7 +168,7 @@ function apiStampRequest(req, res) {
                 resolve(data);
             }
             try { // cleanup              
-              del(uniqTmpDir);
+              del(uniqTmpDir, { 'force' : true });
             } catch(error) {
               console.log(error);
             }    
@@ -241,7 +241,7 @@ function apiVerifyDocumentStamp(req, res) {
             resolve(stampVerificationJson);
           }
           try { // cleanup              
-            del(uniqTmpDir);
+            del(uniqTmpDir, { 'force' : true });
           } catch(error) {
             console.log(error);
           }
