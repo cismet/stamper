@@ -9,7 +9,8 @@ const crypto = require('crypto');
 const pdftk = require('node-pdftk');
 const uniqid = require('uniqid');
 const path = require('path');
-var fetch = require('node-fetch');
+const fetch = require('node-fetch');
+const fileType = require('file-type');
 
 module.exports = {
   createKeypair: apiCreateKeypair,
@@ -121,17 +122,21 @@ function apiStampRequest(req, res) {
     let requestUrl = requestData.url;
     let requestOptions = requestData.options;
 
-    fetch(requestUrl, requestOptions).then((res) => {
-      let file = uniqTmpDir + 'file.pdf';
+    fetch(requestUrl, requestOptions).then(res => res.buffer()).then(buffer => {
+      let typeOfFile = fileType(buffer);
+      console.log('fileType: ' + typeOfFile);
 
-      let fileStream = fs.createWriteStream(file);
-      res.body.pipe(fileStream);      
-      res.body.on("error", (error) => {
-        fileStream.close();
-        reject(error);
-      });
-      fileStream.on("finish", function() {
-        fileStream.close();
+      if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
+        let file = uniqTmpDir + 'file' + (typeOfFile != null ? typeOfFile.ext : "");
+
+        let fileStream = fs.createWriteStream(file);
+        try {
+          fileStream.write(buffer);
+        } catch (error) {
+          reject(error);
+        } finally {
+          fileStream.close();
+        }
 
         stampFile(file).then(stampData => {
           let stampId = stampData.stampId;
@@ -159,7 +164,10 @@ function apiStampRequest(req, res) {
         }).catch(error => {
           reject(error);
         });    
-      });
+      } else {
+        console.log('not stamped because of unsupported fileType !');
+        resolve(buffer);
+      }
     });
   }).then(data => {
     res.writeHead(200, { 'Content-Type': 'application/pdf' });

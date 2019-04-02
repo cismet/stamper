@@ -12,6 +12,7 @@
   "dependencies": {
     "crypto": "^1.0.1",
     "del": "^4.0.0",
+    "file-type": "^10.10.0",
     "mkdir-recursive": "^0.4.0",
     "node-fetch": "^2.3.0",
     "node-pdftk": "^2.0.2",
