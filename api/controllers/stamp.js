@@ -7,7 +7,7 @@ const del = require('del');
 const openpgp = require('openpgp');
 const crypto = require('crypto');
 const pdftk = require('node-pdftk');
-const uniqid = require('uniqid');
+const uuid = require('uuid/v4');
 const path = require('path');
 const fetch = require('node-fetch');
 const fileType = require('file-type');
@@ -66,11 +66,15 @@ function apiCreateKeypair(req, res) {
 // ### 
 
 function apiStampDocument(req, res) {
+  console.log('\n### stampUpload ###');
+
   let documentBuffer = req.files.document[0].buffer;
   let contextBuffer = Object.prototype.hasOwnProperty.call(req.files, 'context') ? req.files.context[0].buffer : null;
 
   new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('stamp_');
+    console.log('tmpDir:', uniqTmpDir);
+
     let documentFile = uniqTmpDir + 'upload.pdf';
     let contextFile = uniqTmpDir + 'context.json';
 
@@ -118,11 +122,15 @@ function apiStampDocument(req, res) {
 // ### 
 
 function apiStampRequest(req, res) {
+  console.log('\n### stampRequest ###');
+
   let requestJsonBuffer = req.files.requestJson[0].buffer;
   let contextBuffer = Object.prototype.hasOwnProperty.call(req.files, 'context') ? req.files.context[0].buffer : null;
 
   new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('stamp_');
+    console.log('tmpDir:', uniqTmpDir);
+
     let requestFile = uniqTmpDir + 'request.json';
     let contextFile = uniqTmpDir + 'context.json';
     
@@ -193,10 +201,12 @@ function apiStampRequest(req, res) {
 // ###
 
 function apiVerifyDocumentStamp(req, res) {
+  console.log('\n### verifyDocument ###');
   let documentBuffer = req.files.document[0].buffer;
 
-  return new Promise(async (resolve, reject) => {
+  new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('verify_');
+    console.log('tmpDir:', uniqTmpDir);
 
     let uploadFile = uniqTmpDir + 'upload.pdf';
 
@@ -230,14 +240,14 @@ function apiVerifyDocumentStamp(req, res) {
               verifyPgpSignature(cidsStampId, uploadFile).then(pgpSignature => {
                 let isStampValid = pgpSignature.valid;
                 let stampVerificationJson = { 'stampIsValid': isStampValid, 'stampId' : cidsStampId };
-                console.log('verifyDocumentStamp.resolve:', stampVerificationJson);  
+                console.log('stampIsValid:', stampVerificationJson.stampIsValid);  
                 resolve(stampVerificationJson);
               }).catch(error => {
                   return reject(error);
               });             
           } else {
             let stampVerificationJson = { 'stampIsValid': false, 'stampId' : cidsStampId };
-            console.log('verifyDocumentStamp.resolve:', stampVerificationJson);  
+            console.log('stampIsValid:', stampVerificationJson.stampIsValid);  
             resolve(stampVerificationJson);
           }
           try { // cleanup              
@@ -250,8 +260,14 @@ function apiVerifyDocumentStamp(req, res) {
         });
     } else {
       let stampVerificationJson = { 'stampIsValid': false, 'stampId' : cidsStampId };
-      console.log('verifyDocumentStamp.resolve:', stampVerificationJson);  
+      console.log('stampIsValid:', stampVerificationJson.stampIsValid);   
       resolve(stampVerificationJson);      
+
+      try { // cleanup              
+        del(uniqTmpDir, { 'force' : true });
+      } catch(error) {
+        console.log(error);
+      }
     }
   }).then(stampVerificationJson => {
       res.json(stampVerificationJson);    
@@ -268,7 +284,7 @@ function apiVerifyMd5sum(req, res) {
 
   verifyMd5Sum(cidsStampId, md5Sum).then(isMatching => {
     let md5sumVerificationJson = { 'md5sumIsMatching': isMatching, 'stampId' : cidsStampId };
-    console.log('apiVerifyMd5sum.resolve:', md5sumVerificationJson);
+    console.log('md5sumIsMatching:', md5sumVerificationJson.md5sumIsMatching);
     res.json(md5sumVerificationJson);
   }).catch(error => {
       return next(error);
@@ -285,7 +301,7 @@ function apiVerifyPgpSignature(req, res) {
 // ###
 
 function createUniqTmpDir(prefix) {
-  let id = uniqid();
+  let id = crypto.createHash('md5').update(uuid()).digest("hex");
 
   let uniqTmpDir = conf.tmpDir + prefix + id + '/';
   fx.mkdirSync(uniqTmpDir)
@@ -305,7 +321,8 @@ async function stampFile(file) {
   let hashFile = fileDir + 'hash.md5';
 
   return new Promise(async (resolve, reject) => {
-      let stampId = uniqid();
+      let stampId = uuid();
+      console.log('stampId:', stampId);
 
       try {
         // extracting dump file from uploaded pdf
@@ -413,15 +430,15 @@ function verifyPgpSignature(cidsStampId, file) {
 function verifyMd5Sum(cidsStampId, md5Sum) {
   return new Promise(async (resolve, reject) => {
       let md5SumDbFile = conf.dataDir + cidsStampId + '.md5';
-      console.log(md5SumDbFile);
+
       if (!fs.existsSync(md5SumDbFile)) {
           console.log('no md5 hash found for this file');
           resolve(false);
       } else {
           let md5SumDb = fs.readFileSync(md5SumDbFile, 'utf8');            
           if (md5SumDb !== md5Sum) {    
-              console.log('md5Sum stored    : ' + md5SumDb);
-              console.log('md5Sum requested : ' + md5Sum);
+              console.log('md5Sum stored    :', md5SumDb);
+              console.log('md5Sum requested :', md5Sum);
               resolve(false);
           } else {
               resolve(true);
