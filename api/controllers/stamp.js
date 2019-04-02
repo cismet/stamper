@@ -24,8 +24,8 @@ module.exports = {
 // ###
 
 const defaultConf = {
-  'tmpDir': './tmp/',
-  'dataDir': './data/',
+  'tmpDir': '/tmp/',
+  'dataDir': '/data/',
   'privateKeyFile' : './config/private.key',
   'PublicKeyFile' : './config/public.key',
   'keyPassword' : 'secret',
@@ -33,11 +33,24 @@ const defaultConf = {
 
 // ###
 
+function getConf() {
+  let confFile = "./config/stamper.json";
+  let fileConf = JSON.parse(fs.readFileSync(confFile));                    
+
+  let conf = Object.assign({}, defaultConf, fileConf);
+  console.log('effective conf:', conf);
+  return conf;
+}
+
+let conf = getConf();  
+
+// ###
+
 function apiCreateKeypair(req, res) {
   let options = {
       userIds: [{ name: 'cismet', email: 'mail@cismet.de' }],
       numBits: 2048,
-      passphrase: defaultConf.keyPassword,
+      passphrase: conf.keyPassword,
   };
 
   openpgp.generateKey(options).then(key => {
@@ -55,7 +68,7 @@ function apiCreateKeypair(req, res) {
 function apiStampDocument(req, res) {
   let documentBuffer = req.files.document[0].buffer;
   let contextBuffer = Object.prototype.hasOwnProperty.call(req.files, 'context') ? req.files.context[0].buffer : null;
-  
+
   new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('stamp_');
     let documentFile = uniqTmpDir + 'upload.pdf';
@@ -69,12 +82,12 @@ function apiStampDocument(req, res) {
     stampFile(documentFile).then(stampData => {
         let stampId = stampData.stampId;
 
-        fx.mkdirSync(defaultConf.dataDir);
+        fx.mkdirSync(conf.dataDir);
 
-        fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
-        fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
+        fs.copyFileSync(stampData.hashFile, conf.dataDir + stampId + '.md5');
+        fs.copyFileSync(stampData.signatureFile, conf.dataDir + stampId + '.pgp');
         if (contextBuffer) {
-          fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+          fs.copyFileSync(contextFile, conf.dataDir + stampId + '.json');
         }
 
         fs.readFile(stampData.stampedFile, (error, data) => {
@@ -123,8 +136,7 @@ function apiStampRequest(req, res) {
     let requestOptions = requestData.options;
 
     fetch(requestUrl, requestOptions).then(res => res.buffer()).then(buffer => {
-      let typeOfFile = fileType(buffer);
-      console.log('fileType: ' + typeOfFile);
+      let typeOfFile = fileType(buffer);      
 
       if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
         let file = uniqTmpDir + 'file' + (typeOfFile != null ? typeOfFile.ext : "");
@@ -141,12 +153,12 @@ function apiStampRequest(req, res) {
         stampFile(file).then(stampData => {
           let stampId = stampData.stampId;
 
-          fx.mkdirSync(defaultConf.dataDir);
+          fx.mkdirSync(conf.dataDir);
 
-          fs.copyFileSync(stampData.hashFile, defaultConf.dataDir + stampId + '.md5');
-          fs.copyFileSync(stampData.signatureFile, defaultConf.dataDir + stampId + '.pgp');
+          fs.copyFileSync(stampData.hashFile, conf.dataDir + stampId + '.md5');
+          fs.copyFileSync(stampData.signatureFile, conf.dataDir + stampId + '.pgp');
           if (contextBuffer) {
-            fs.copyFileSync(contextFile, defaultConf.dataDir + stampId + '.json');
+            fs.copyFileSync(contextFile, conf.dataDir + stampId + '.json');
           }
 
           fs.readFile(stampData.stampedFile, (error, data) => {
@@ -275,7 +287,7 @@ function apiVerifyPgpSignature(req, res) {
 function createUniqTmpDir(prefix) {
   let id = uniqid();
 
-  let uniqTmpDir = defaultConf.tmpDir + prefix + id + '/';
+  let uniqTmpDir = conf.tmpDir + prefix + id + '/';
   fx.mkdirSync(uniqTmpDir)
 
   return uniqTmpDir;
@@ -321,7 +333,7 @@ async function stampFile(file) {
         return reject(new errors.InternalError('could not write filehash'));
       }
 
-      fs.readFile(defaultConf.privateKeyFile, 'utf8', async (error, privkey) => {
+      fs.readFile(conf.privateKeyFile, 'utf8', async (error, privkey) => {
           if (error) {
               console.log(error);
               reject(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
@@ -369,12 +381,12 @@ function fileHash(filename, algorithm = 'md5') {
 
 function verifyPgpSignature(cidsStampId, file) {
   return new Promise((resolve, reject) => {
-      let signatureDbFile = defaultConf.dataDir + cidsStampId + '.pgp';
+      let signatureDbFile = conf.dataDir + cidsStampId + '.pgp';
       if (!fs.existsSync(signatureDbFile)) {
           return reject(new errors.NotFoundError('no signature found for this file'));
       }
 
-      fs.readFile(defaultConf.privateKeyFile, 'utf8', async (error, pubkey) => {
+      fs.readFile(conf.privateKeyFile, 'utf8', async (error, pubkey) => {
           if (error) {
               console.log(error);
               return reject(new errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
@@ -400,7 +412,7 @@ function verifyPgpSignature(cidsStampId, file) {
 
 function verifyMd5Sum(cidsStampId, md5Sum) {
   return new Promise(async (resolve, reject) => {
-      let md5SumDbFile = defaultConf.dataDir + cidsStampId + '.md5';
+      let md5SumDbFile = conf.dataDir + cidsStampId + '.md5';
       console.log(md5SumDbFile);
       if (!fs.existsSync(md5SumDbFile)) {
           console.log('no md5 hash found for this file');
