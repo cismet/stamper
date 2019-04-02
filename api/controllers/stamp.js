@@ -26,9 +26,15 @@ module.exports = {
 const defaultConf = {
   'tmpDir': '/tmp/',
   'dataDir': '/data/',
+  'stampIdKey': 'cismetStamperId',
+  'infoFields': {},
   'privateKeyFile' : './config/private.key',
   'PublicKeyFile' : './config/public.key',
   'keyPassword' : 'secret',
+  'keyUserId' : {
+    'name' : 'name',
+    'email' : 'e@mail'
+  }
 };
 
 // ###
@@ -48,7 +54,7 @@ let conf = getConf();
 
 function apiCreateKeypair(req, res) {
   let options = {
-      userIds: [{ name: 'cismet', email: 'mail@cismet.de' }],
+      userIds: [ keyUserId ],
       numBits: 2048,
       passphrase: conf.keyPassword,
   };
@@ -223,30 +229,30 @@ function apiVerifyDocumentStamp(req, res) {
 
     let dumpLines = dumpUpload.split('\n');
 
-    let cidsStampId = '';
+    let stampId = '';
     for (let i = 0 ; i < dumpLines.length; i++) {
         let dumpLine = dumpLines[i];
-        if ('InfoKey: cidsStampId' === dumpLine) {
-            cidsStampId = dumpLines[i+1].replace('InfoValue: ', '');
+        if ('InfoKey: ' + conf.stampIdKey === dumpLine) {
+            stampId = dumpLines[i+1].replace('InfoValue: ', '');
             break;
         }
     }
 
-    console.log('cidsStampId:', cidsStampId);
-    if (cidsStampId) {
+    console.log('stampId:', stampId);
+    if (stampId) {
         let md5Sum = await fileHash(uploadFile);            
-        verifyMd5Sum(cidsStampId, md5Sum).then(isMd5sumMatching => {
+        verifyMd5Sum(stampId, md5Sum).then(isMd5sumMatching => {
           if (isMd5sumMatching) {
-              verifyPgpSignature(cidsStampId, uploadFile).then(pgpSignature => {
+              verifyPgpSignature(stampId, uploadFile).then(pgpSignature => {
                 let isStampValid = pgpSignature.valid;
-                let stampVerificationJson = { 'stampIsValid': isStampValid, 'stampId' : cidsStampId };
+                let stampVerificationJson = { 'stampIsValid': isStampValid, 'stampId' : stampId };
                 console.log('stampIsValid:', stampVerificationJson.stampIsValid);  
                 resolve(stampVerificationJson);
               }).catch(error => {
                   return reject(error);
               });             
           } else {
-            let stampVerificationJson = { 'stampIsValid': false, 'stampId' : cidsStampId };
+            let stampVerificationJson = { 'stampIsValid': false, 'stampId' : stampId };
             console.log('stampIsValid:', stampVerificationJson.stampIsValid);  
             resolve(stampVerificationJson);
           }
@@ -259,7 +265,7 @@ function apiVerifyDocumentStamp(req, res) {
             reject(error);
         });
     } else {
-      let stampVerificationJson = { 'stampIsValid': false, 'stampId' : cidsStampId };
+      let stampVerificationJson = { 'stampIsValid': false, 'stampId' : stampId };
       console.log('stampIsValid:', stampVerificationJson.stampIsValid);   
       resolve(stampVerificationJson);      
 
@@ -279,11 +285,11 @@ function apiVerifyDocumentStamp(req, res) {
 // ###
 
 function apiVerifyMd5sum(req, res) {
-  let cidsStampId = req.swagger.params.stampId.value;
+  let stampId = req.swagger.params.stampId.value;
   let md5Sum = req.swagger.params.md5sum.value;
 
-  verifyMd5Sum(cidsStampId, md5Sum).then(isMatching => {
-    let md5sumVerificationJson = { 'md5sumIsMatching': isMatching, 'stampId' : cidsStampId };
+  verifyMd5Sum(stampId, md5Sum).then(isMatching => {
+    let md5sumVerificationJson = { 'md5sumIsMatching': isMatching, 'stampId' : stampId };
     console.log('md5sumIsMatching:', md5sumVerificationJson.md5sumIsMatching);
     res.json(md5sumVerificationJson);
   }).catch(error => {
@@ -333,7 +339,14 @@ async function stampFile(file) {
   
       // writing new dump file containing stamp id
       let dump = fs.readFileSync(dumpUploadFile);
-      let cidsStampDumpInfoPart = 'InfoBegin\nInfoKey: cidsStampId\nInfoValue: ' + stampId + '\n';
+      
+      let infoFields = Object.assign({}, conf.infoFields);
+      infoFields[conf.stampIdKey] = stampId;
+
+      let cidsStampDumpInfoPart = Object.keys(infoFields).map(function(key) {
+        return 'InfoBegin\nInfoKey: ' + key + '\nInfoValue: ' + infoFields[key] + '\n';
+      }).join('');
+
       fs.writeFileSync(dumpNewFile, cidsStampDumpInfoPart + dump);
   
       try {
@@ -396,9 +409,9 @@ function fileHash(filename, algorithm = 'md5') {
 
 // ###
 
-function verifyPgpSignature(cidsStampId, file) {
+function verifyPgpSignature(stampId, file) {
   return new Promise((resolve, reject) => {
-      let signatureDbFile = conf.dataDir + cidsStampId + '.pgp';
+      let signatureDbFile = conf.dataDir + stampId + '.pgp';
       if (!fs.existsSync(signatureDbFile)) {
           return reject(new errors.NotFoundError('no signature found for this file'));
       }
@@ -427,9 +440,9 @@ function verifyPgpSignature(cidsStampId, file) {
 
 // ###
 
-function verifyMd5Sum(cidsStampId, md5Sum) {
+function verifyMd5Sum(stampId, md5Sum) {
   return new Promise(async (resolve, reject) => {
-      let md5SumDbFile = conf.dataDir + cidsStampId + '.md5';
+      let md5SumDbFile = conf.dataDir + stampId + '.md5';
 
       if (!fs.existsSync(md5SumDbFile)) {
           console.log('no md5 hash found for this file');
