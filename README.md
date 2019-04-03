@@ -21,9 +21,15 @@ A stamping service for documents, that allows you to verify if a document has be
 
 ## How it works
 
+* stamp a document via upload:
+
 ![stampUpload](https://user-images.githubusercontent.com/1787908/55465707-fced2e80-55fd-11e9-86e2-26303ce45669.png)
 
+* stamp a document via request:
+
 ![stampRequest](https://user-images.githubusercontent.com/1787908/55465704-fced2e80-55fd-11e9-8e4c-3cd585d2e695.png)
+
+* verify a stamped document:
 
 ![stampVerification](https://user-images.githubusercontent.com/1787908/55465705-fced2e80-55fd-11e9-85fe-994f3124d8eb.png)
 
@@ -62,7 +68,7 @@ swagger project start
 
 ### swagger API documentation
 
-To get the swagger API documentation you can start the project with
+To get the swagger API documentation you can start the project with:
 ```shell
 swagger project edit
 ```
@@ -70,7 +76,7 @@ swagger project edit
 The documentation looks like this:
 ![api](https://user-images.githubusercontent.com/1787908/55465723-05de0000-55fe-11e9-948a-146e0205abf8.png)
 
-### with curl
+### sending requests to the api with curl
 
 * upload a document to get it back stamped:
 ```shell
