@@ -21,11 +21,15 @@ A stamping service for documents, that allows you to verify if a document has be
 
 ## How it works
 
-*wor in progress*
+*work in progress*
+
+
 
 ---
 
-## starting the service inside a docker container with docker-compose
+## How to start the service
+
+### starting the service inside a docker container with docker-compose
 
 building the docker image localy (needed only once):
 `docker build -t cismet/stamper .`
@@ -33,7 +37,7 @@ building the docker image localy (needed only once):
 creating and starting the container using docker-compose:
 `docker-compose up -d`
 
-### ...without docker-compose
+#### ...without docker-compose
 ```shell
 docker run -t --rm \
  -p 8082:10010 \
@@ -44,8 +48,47 @@ docker run -t --rm \
  cismet/stamper
 ```
 
-## starting the service without docker
+### starting the service without docker
 ```shell
 npm install -g swagger
 swagger project start
+```
+
+---
+
+## How to use the service
+
+### with curl
+
+* upload a document to get it back stamped:
+```shell
+SERVICE=http://localhost:10010
+INPUT_FILE=<your_file_here>
+OUTPUT_FILE=stamped_$INPUT_FILE
+
+curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE" $SERVICE/stampDocument -o "$OUTPUT_FILE"
+```
+
+* upload a request definition to get a stamped document from another service:
+
+*request.json*
+```json
+{
+  "url" : "<your request url here>",
+  "options" : "<your fetch options here (optional)>"
+}
+```
+```shell
+SERVICE=http://localhost:10010
+OUTPUT_FILE=stamped_$INPUT_FILE
+
+curl -s -X POST -H "Content-Type: multipart/form-data" -F "requestJson=@request.json" $SERVICE/stampRequest -o "$OUTPUT_FILE"
+```
+
+* upload a stamped document for verification:
+```shell
+SERVICE=http://localhost:10010
+INPUT_FILE=<your_file_here>
+
+curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE" $SERVICE/verifyDocumentStamp
 ```
