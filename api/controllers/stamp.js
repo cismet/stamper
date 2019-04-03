@@ -34,7 +34,8 @@ const defaultConf = {
   'keyUserId' : {
     'name' : 'name',
     'email' : 'e@mail'
-  }
+  },
+  'password': 'secret'
 };
 
 // ###
@@ -71,11 +72,17 @@ function apiCreateKeypair(req, res) {
 
 // ### 
 
-function apiStampDocument(req, res) {
+function apiStampDocument(req, res, next) {
   console.log('\n### stampUpload ###');
 
   let documentBuffer = req.files.document[0].buffer;
   let contextBuffer = Object.prototype.hasOwnProperty.call(req.files, 'context') ? req.files.context[0].buffer : null;
+  let password = req.body.password;
+
+  if (password != conf.password) {
+    console.log(password, conf.password);
+    return next(new errors.ForbiddenError("you are not allowed to create a stamp"));
+  }
 
   new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('stamp_');
@@ -127,11 +134,17 @@ function apiStampDocument(req, res) {
 
 // ### 
 
-function apiStampRequest(req, res) {
+function apiStampRequest(req, res, next) {
   console.log('\n### stampRequest ###');
 
   let requestJsonBuffer = req.files.requestJson[0].buffer;
   let contextBuffer = Object.prototype.hasOwnProperty.call(req.files, 'context') ? req.files.context[0].buffer : null;
+  let password = req.body.password;
+
+  if (password != conf.password) {
+    console.log(password, conf.password);
+    return next(new errors.ForbiddenError("you are not allowed to create a stamp"));
+  }
 
   new Promise(async (resolve, reject) => {
     let uniqTmpDir = createUniqTmpDir('stamp_');
@@ -206,7 +219,7 @@ function apiStampRequest(req, res) {
 
 // ###
 
-function apiVerifyDocumentStamp(req, res) {
+function apiVerifyDocumentStamp(req, res, next) {
   console.log('\n### verifyDocument ###');
   let documentBuffer = req.files.document[0].buffer;
 
@@ -284,7 +297,7 @@ function apiVerifyDocumentStamp(req, res) {
 
 // ###
 
-function apiVerifyMd5sum(req, res) {
+function apiVerifyMd5sum(req, res, next) {
   let stampId = req.swagger.params.stampId.value;
   let md5Sum = req.swagger.params.md5sum.value;
 
@@ -299,7 +312,7 @@ function apiVerifyMd5sum(req, res) {
 
 // ###
 
-function apiVerifyPgpSignature(req, res) {
+function apiVerifyPgpSignature(req, res, next) {
   let pgpSignatureVerificationJson = { 'pgpSignatureIsMatching': false, 'stampId' : null };
   res.json(pgpSignatureVerificationJson);    
 }
