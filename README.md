@@ -84,7 +84,7 @@ SERVICE=http://localhost:10010
 INPUT_FILE=<your_file_here>
 OUTPUT_FILE=stamped_$INPUT_FILE
 
-curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE" $SERVICE/stampDocument -o "$OUTPUT_FILE"
+curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE" -F "password=secret" $SERVICE/stampDocument -o "$OUTPUT_FILE"
 ```
 
 * upload a request definition to get a stamped document from another service:
@@ -100,7 +100,7 @@ curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE
 SERVICE=http://localhost:10010
 OUTPUT_FILE=stamped_$INPUT_FILE
 
-curl -s -X POST -H "Content-Type: multipart/form-data" -F "requestJson=@request.json" $SERVICE/stampRequest -o "$OUTPUT_FILE"
+curl -s -X POST -H "Content-Type: multipart/form-data" -F "requestJson=@request.json" -F "password=secret" $SERVICE/stampRequest -o "$OUTPUT_FILE"
 ```
 
 * upload a stamped document for verification:
