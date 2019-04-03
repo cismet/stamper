@@ -21,9 +21,11 @@ A stamping service for documents, that allows you to verify if a document has be
 
 ## How it works
 
-*work in progress*
+![stampUpload](https://user-images.githubusercontent.com/1787908/55465707-fced2e80-55fd-11e9-86e2-26303ce45669.png)
 
+![stampRequest](https://user-images.githubusercontent.com/1787908/55465704-fced2e80-55fd-11e9-8e4c-3cd585d2e695.png)
 
+![stampVerification](https://user-images.githubusercontent.com/1787908/55465705-fced2e80-55fd-11e9-85fe-994f3124d8eb.png)
 
 ---
 
@@ -58,6 +60,16 @@ swagger project start
 
 ## How to use the service
 
+### swagger API documentation
+
+To get the swagger API documentation you can start the project with
+```shell
+swagger project edit
+```
+
+The documentation looks like this:
+![api](https://user-images.githubusercontent.com/1787908/55465723-05de0000-55fe-11e9-948a-146e0205abf8.png)
+
 ### with curl
 
 * upload a document to get it back stamped:
@@ -70,9 +82,9 @@ curl -s -X POST -H "Content-Type: multipart/form-data" -F "document=@$INPUT_FILE
 ```
 
 * upload a request definition to get a stamped document from another service:
-
-*request.json*
+  
 ```json
+// request.json
 {
   "url" : "<your request url here>",
   "options" : "<your fetch options here (optional)>"
