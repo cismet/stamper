@@ -1,8 +1,8 @@
 'use strict';
 
-var SwaggerRestify = require('swagger-restify-mw');
-var restify = require('restify');
-var server = restify.createServer();
+const SwaggerRestify = require('swagger-restify-mw');
+const restify = require('restify');
+const server = restify.createServer();
 
 module.exports = server; // for testing
 
