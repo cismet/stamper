@@ -148,72 +148,80 @@ function apiStampRequest(req, res, next) {
   }
 
   new Promise(async (resolve, reject) => {
-    let uniqTmpDir = createUniqTmpDir('stamp_');
-    console.log('tmpDir:', uniqTmpDir);
+    try {
+      let uniqTmpDir = createUniqTmpDir('stamp_');
+      console.log('tmpDir:', uniqTmpDir);
 
-    let requestFile = uniqTmpDir + 'request.json';
-    let contextFile = uniqTmpDir + 'context.json';
+      let requestFile = uniqTmpDir + 'request.json';
+      let contextFile = uniqTmpDir + 'context.json';
 
-    fs.writeFileSync(requestFile, requestJsonBuffer);
-    if (contextBuffer) {
-      fs.writeFileSync(contextFile, contextBuffer);
-    }
-
-    let requestData = JSON.parse(requestJsonBuffer);
-    let requestUrl = requestData.url;
-    let requestOptions = requestData.options;
-
-    fetch(requestUrl, requestOptions).then(res => res.buffer()).then(buffer => {
-      let typeOfFile = fileType(buffer);
-
-      if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
-        let file = uniqTmpDir + 'file' + (typeOfFile != null ? typeOfFile.ext : "");
-
-        let fileStream = fs.createWriteStream(file);
-        try {
-          fileStream.write(buffer);
-        } catch (error) {
-          reject(error);
-        } finally {
-          fileStream.close();
-        }
-
-        stampFile(file).then(stampData => {
-          let stampId = stampData.stampId;
-
-          fx.mkdirSync(conf.dataDir);
-
-          fs.copyFileSync(stampData.hashFile, conf.dataDir + stampId + '.md5');
-          fs.copyFileSync(stampData.signatureFile, conf.dataDir + stampId + '.pgp');
-          if (contextBuffer) {
-            fs.copyFileSync(contextFile, conf.dataDir + stampId + '.json');
-          }
-
-          fs.readFile(stampData.stampedFile, (error, data) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(data);
-            }
-            try { // cleanup              
-              del(uniqTmpDir, { 'force': true });
-            } catch (error) {
-              console.log(error);
-            }
-          });
-        }).catch(error => {
-          reject(error);
-        });
-      } else {
-        console.log('not stamped because of unsupported fileType !');
-        resolve(buffer);
+      fs.writeFileSync(requestFile, requestJsonBuffer);
+      if (contextBuffer) {
+        fs.writeFileSync(contextFile, contextBuffer);
       }
-    });
+
+      let requestData = JSON.parse(requestJsonBuffer);
+      let requestUrl = requestData.url;
+      let requestOptions = requestData.options;
+
+      fetch(requestUrl, requestOptions).then(res => res.buffer()).then(buffer => {
+        try {
+          let typeOfFile = fileType(buffer);
+
+          if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
+            let file = uniqTmpDir + 'file' + (typeOfFile != null ? typeOfFile.ext : "");
+
+            let fileStream = fs.createWriteStream(file);
+            try {
+              fileStream.write(buffer);
+            } catch (error) {
+              reject(error);
+            } finally {
+              fileStream.close();
+            }
+
+            stampFile(file).then(stampData => {
+              let stampId = stampData.stampId;
+
+              fx.mkdirSync(conf.dataDir);
+
+              fs.copyFileSync(stampData.hashFile, conf.dataDir + stampId + '.md5');
+              fs.copyFileSync(stampData.signatureFile, conf.dataDir + stampId + '.pgp');
+              if (contextBuffer) {
+                fs.copyFileSync(contextFile, conf.dataDir + stampId + '.json');
+              }
+
+              fs.readFile(stampData.stampedFile, (error, data) => {
+                if (error) {
+                  reject(error);
+                } else {
+                  resolve(data);
+                }
+                try { // cleanup              
+                  del(uniqTmpDir, { 'force': true });
+                } catch (error) {
+                  console.log(error);
+                }
+              });
+            }).catch(error => {
+              reject(error);
+            });
+          } else {
+            console.log('not stamped because of unsupported fileType !');
+            resolve(buffer);
+          }
+        } catch (error) {
+          reject(new errors.InternalServerError(error.message));
+        }
+      });
+    } catch (error) {
+      reject(new errors.InternalServerError(error.message));
+    }
   }).then(data => {
     res.writeHead(200, { 'Content-Type': 'application/pdf' });
     res.end(data, 'binary');
   }).catch(error => {
-    return next(errors.NotFoundError("there was something wrong with the request. the error message from the underlying process is: " + error.message));
+    return next(error);
   });
 }
 
@@ -224,75 +232,83 @@ function apiVerifyDocumentStamp(req, res, next) {
   let documentBuffer = req.files.document[0].buffer;
 
   new Promise(async (resolve, reject) => {
-    let typeOfFile = fileType(documentBuffer);
+    try {
+      let typeOfFile = fileType(documentBuffer);
 
-    if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
-      let uniqTmpDir = createUniqTmpDir('verify_');
-      console.log('tmpDir:', uniqTmpDir);
+      if (typeOfFile != null && typeOfFile.mime == 'application/pdf') {
+        let uniqTmpDir = createUniqTmpDir('verify_');
+        console.log('tmpDir:', uniqTmpDir);
 
-      let uploadFile = uniqTmpDir + 'upload.pdf';
+        let uploadFile = uniqTmpDir + 'upload.pdf';
 
-      fs.writeFileSync(uploadFile, documentBuffer);
+        fs.writeFileSync(uploadFile, documentBuffer);
 
-      // ok letze go
+        // ok letze go
 
-      let dumpUploadFile = uniqTmpDir + 'upload.dump';
+        let dumpUploadFile = uniqTmpDir + 'upload.dump';
 
-      // extracting dump file from uploaded pdf
-      await pdftk.input(uploadFile).dumpDataUtf8().output(dumpUploadFile);
-
-      let dumpUpload = fs.readFileSync(dumpUploadFile, 'utf8');
-
-      let dumpLines = dumpUpload.split('\n');
-
-      let stampId = '';
-      for (let i = 0; i < dumpLines.length; i++) {
-        let dumpLine = dumpLines[i];
-        if ('InfoKey: ' + conf.stampIdKey === dumpLine) {
-          stampId = dumpLines[i + 1].replace('InfoValue: ', '');
-          break;
+        // extracting dump file from uploaded pdf
+        let pdftkResult = await pdftk.input(uploadFile);
+        if (conf.pdftkOwnerPw) {
+          pdftkResult = await pdftkResult.inputPw(conf.pdftkOwnerPw);
         }
-      }
+        await pdftkResult.dumpDataUtf8().output(dumpUploadFile);
 
-      console.log('stampId:', stampId);
-      if (stampId) {
-        let md5Sum = await fileHash(uploadFile);
-        verifyMd5Sum(stampId, md5Sum).then(isMd5sumMatching => {
-          if (isMd5sumMatching) {
-            verifyPgpSignature(stampId, uploadFile).then(pgpSignature => {
-              let isStampValid = pgpSignature.valid;
-              let stampVerificationJson = { 'stampIsValid': isStampValid, 'stampId': stampId };
+        let dumpUpload = fs.readFileSync(dumpUploadFile, 'utf8');
+
+        let dumpLines = dumpUpload.split('\n');
+
+        let stampId = '';
+        for (let i = 0; i < dumpLines.length; i++) {
+          let dumpLine = dumpLines[i];
+          if ('InfoKey: ' + conf.stampIdKey === dumpLine) {
+            stampId = dumpLines[i + 1].replace('InfoValue: ', '');
+            break;
+          }
+        }
+
+        console.log('stampId:', stampId);
+        if (stampId) {
+          let md5Sum = await fileHash(uploadFile);
+          verifyMd5Sum(stampId, md5Sum).then(isMd5sumMatching => {
+            if (isMd5sumMatching) {
+              verifyPgpSignature(stampId, uploadFile).then(pgpSignature => {
+                let isStampValid = pgpSignature.valid;
+                let stampVerificationJson = { 'stampIsValid': isStampValid, 'stampId': stampId };
+                console.log('stampIsValid:', stampVerificationJson.stampIsValid);
+                resolve(stampVerificationJson);
+              }).catch(error => {
+                return reject(error);
+              });
+            } else {
+              let stampVerificationJson = { 'stampIsValid': false, 'stampId': stampId };
               console.log('stampIsValid:', stampVerificationJson.stampIsValid);
               resolve(stampVerificationJson);
-            }).catch(error => {
-              return reject(error);
-            });
-          } else {
-            let stampVerificationJson = { 'stampIsValid': false, 'stampId': stampId };
-            console.log('stampIsValid:', stampVerificationJson.stampIsValid);
-            resolve(stampVerificationJson);
-          }
+            }
+            try { // cleanup              
+              del(uniqTmpDir, { 'force': true });
+            } catch (error) {
+              console.log(error);
+            }
+          }).catch(error => {
+            reject(error);
+          });
+        } else {
+          let stampVerificationJson = { 'stampIsValid': false, 'stampId': stampId };
+          console.log('stampIsValid:', stampVerificationJson.stampIsValid);
+          resolve(stampVerificationJson);
+
           try { // cleanup              
             del(uniqTmpDir, { 'force': true });
           } catch (error) {
             console.log(error);
           }
-        }).catch(error => {
-          reject(error);
-        });
-      } else {
-        let stampVerificationJson = { 'stampIsValid': false, 'stampId': stampId };
-        console.log('stampIsValid:', stampVerificationJson.stampIsValid);
-        resolve(stampVerificationJson);
-
-        try { // cleanup              
-          del(uniqTmpDir, { 'force': true });
-        } catch (error) {
-          console.log(error);
         }
+      } else {
+        reject(new errors.UnsupportedMediaTypeError('only application/pdf is supported'));
       }
-    } else {
-      reject(new errors.UnsupportedMediaTypeError('only application/pdf is supported'));
+    } catch (error) {
+      reject(new errors.InternalServerError(error));
     }
   }).then(stampVerificationJson => {
     res.json(stampVerificationJson);
