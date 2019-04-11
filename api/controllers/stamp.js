@@ -36,6 +36,8 @@ const defaultConf = {
     'email': 'e@mail'
   },
   'password': 'secret',
+  'pdftkOwnerPw': 'somePassword',
+  'pdftkAllow': ['CopyContents', 'Printing'],
 };
 
 // ###
@@ -368,9 +370,20 @@ async function stampFile(file) {
 
     try {
       // writing pdf file with dump containing stamp id
-      await pdftk.input(file).updateInfo(dumpNewFile).output(stampedFile);
+      let pdftkResult = await pdftk.input(file).updateInfo(dumpNewFile);
+      if (conf.pdftkAllow) {
+        pdftkResult = await pdftkResult.ownerPw(conf.pdftkOwnerPw);
+        if (Array.isArray(conf.pdftkAllow)) {
+          await conf.pdftkAllow.forEach(async pdftkAllow => {
+            pdftkResult = await pdftkResult.allow(pdftkAllow);
+          });          
+        } else {
+          pdftkResult = await pdftkResult.allow(conf.pdftkAllow);
+        }
+      }
+      await pdftkResult.output(stampedFile);
     } catch (error) {
-      return reject(newerrors.InternalError('could not overwrite dump'));
+      return reject(new errors.InternalError('could not overwrite dump'));
     }
 
     try {
