@@ -12,6 +12,6 @@ RUN apk --no-cache add git pdftk && npm install -g swagger && npm install
 
 VOLUME ./data
 
-EXPOSE 8082
+EXPOSE 10010
 
 CMD ["swagger", "project", "start"]
